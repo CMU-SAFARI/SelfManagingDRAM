@@ -1,7 +1,7 @@
 # Self-Managing DRAM (SMD)
 
 Source code of the simulator used to evaluate the mechanisms presented in:
->H. Hassan, M. Patel, J. S. Kim, A. G. Yağlıkçı, N. Vijaykumar, N. Mansouri Ghiasi, S. Ghose, O. Mutlu.
+>H. Hassan, A. Olgun, A. G. Yağlıkçı, H. Luo, and O. Mutlu.
 >"[**A Case for Self-Managing DRAM Chips: Improving Performance, Efficiency, Reliability, and Security via Autonomous in-DRAM Maintenance Operations**](https://arxiv.org/abs/2207.13358)".
 >In _arXiv_, 2022.
 
