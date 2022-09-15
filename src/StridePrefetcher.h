@@ -11,6 +11,7 @@
 #define STRIDE_REGION(x) ( x >> (PREF_STRIDE_REGION_BITS) )
 
 #include <functional>
+#include <sys/types.h>
 #include "Request.h"
 
 #ifdef ATB_HEADERS

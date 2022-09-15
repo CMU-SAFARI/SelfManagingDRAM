@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <functional>
+#include <stdint.h>
 
 using namespace std;
 

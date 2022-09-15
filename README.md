@@ -11,6 +11,9 @@ Yoongu Kim, Weikun Yang, and Onur Mutlu, "[Ramulator: A Fast and Extensible DRAM
 
 Please cite the above works if you make use of the tool provided in this repository.
 
+## Dependencies
+
+The simulator integrates [DRAMPower](https://github.com/tukl-msd/DRAMPower) for DRAM power consumption and energy analysis. DRAMPower depends on `libxerces`, which can be installed using `apt install libxerces-c-dev`.
 
 ## Running Simulations
 
