@@ -36,10 +36,12 @@ repository](https://github.com/CMU-SAFARI/ramulator) for traces collected
 from real workloads.
 
 The `run.sh` script simulates a single-core workload (i.e., "403.gcc" from the
-SPEC2006 benchmark suite) using the default system and SMD configuration
-parameters. Update the script to simulate a different workload with different
+SPEC2006 benchmark suite) using the default system and the SMD-combined configuration with the deterministic RowHammer protection mechanism. 
+Update the script to simulate a different workload with different
 configuration parameters. See `src/Config.h` for a list of the available
 configuration parameters.
+
+We provide multiple bash scripts under the `scripts` directory. Each script sets the simulation configuration parameters for one of the SMD configurations evaluated in the paper. You can replace the contents of `run.sh` with the content of a script under `scripts` to simulate a different SMD configuration.
 
 Also, please refer to the [original Ramulator
 repository](https://github.com/CMU-SAFARI/ramulator) for information about the
