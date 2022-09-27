@@ -41,7 +41,16 @@ Update the script to simulate a different workload with different
 configuration parameters. See `src/Config.h` for a list of the available
 configuration parameters.
 
-We provide multiple bash scripts under the `scripts` directory. Each script sets the simulation configuration parameters for one of the SMD configurations evaluated in the paper. You can replace the contents of `run.sh` with the content of a script under `scripts` to simulate a different SMD configuration.
+We provide multiple bash scripts under the `scripts` directory. Each script sets the simulation configuration parameters for one of the SMD configurations evaluated in the paper. You can replace the contents of `run.sh` with the content of a script under `scripts` to simulate a different SMD configuration. We briefly describe the configurations provided in the `scripts` directory:
+
+* SMD-Combined-DRP.sh: SMD combined with the deterministic RowHammer protection mechanism (Graphene).
+* SMD-Combined-PRP.sh: SMD combined with the probabilistic RowHammer protection mechanism (PARA).
+* SMD-DRP.sh: SMD deterministic RowHammer protection mechanism (Graphene) + SMD fixed rate refresh (SMD-FR).
+* SMD-FR.sh: SMD fixed rate refresh with a refresh period of 32 ms.
+* SMD-MS.sh: SMD memory scrubbing with a 5 minute scrubbing period + SMD fixed rate refresh (SMD-FR).
+* SMD-PRP.sh: SMD probabilistic RowHammer protection mechanism (PARA) + SMD fixed rate refresh (SMD-FR).
+* SMD-PRPplus.sh: SMD's area-efficient RowHammer protection mechanism with bloom filters + SMD fixed rate refresh (SMD-FR).
+* SMD-VR.sh: SMD variable rate refresh with a refresh period of 32 ms and a weak row probability of 0.1%.
 
 Also, please refer to the [original Ramulator
 repository](https://github.com/CMU-SAFARI/ramulator) for information about the
