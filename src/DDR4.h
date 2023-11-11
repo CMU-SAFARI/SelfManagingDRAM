@@ -151,7 +151,7 @@ public:
     Command translate[int(Request::Type::MAX)] = {
         Command::RD,  Command::WR,
         Command::REF, Command::PDE, Command::SRE, 
-        Command::RD
+        Command::RD, Command::RD 
     };
 
     /* Prereq */

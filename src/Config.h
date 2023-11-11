@@ -82,6 +82,24 @@ private:
         {"print_cmd_trace", "off"},
         {"collect_row_activation_histogram", "off"},
 
+        // RAIDR
+        {"enable_raidr", "off"},
+        {"raidr_variable_refresh_distribution", "discrete"},
+        {"raidr_variable_refresh_weak_row_percentage", "0.05"},
+        {"raidr_variable_refresh_bloom_filter_size", "8192"},
+        {"raidr_variable_refresh_bloom_filter_hashes", "6"},
+        {"raidr_refresh_period", "102400000"}, // 102400000 cycles = 64ms at 1600Mhz (i.e., 3200 data rate)
+
+        // GRAPHENE
+        {"enable_graphene", "off"},
+        {"graphene_no_table_entries", "274"},
+        {"graphene_activation_threshold", "50"},
+        {"graphene_reset_period", "640000"},
+        {"graphene_debug", "off"},
+        {"graphene_debug_verbose", "off"},
+        {"graphene_rowpress", "off"},
+        {"graphene_rowpress_increment_nticks", "0"},
+
         // DDR4 Maintenance Operations
         {"enable_para", "off"},
         {"para_neighbor_refresh_pct", "1"}, // a number between 0-100 (%) indicating the probability to trigger neighbor row refresh

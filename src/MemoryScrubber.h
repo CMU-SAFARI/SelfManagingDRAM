@@ -106,6 +106,7 @@ class MemoryScrubber {
                 if (scrub_counter->is_row_scrub_complete()) {
                     scrub_counter->begin_row_scrub();
                     pending_row_scrubs--;
+                    printf("Memory Scrubber: Starting scrubbing of row %d, bank %d, rank %d\n", scrub_counter->get_row_id(), scrub_counter->get_bank_id(), scrub_counter->get_rank_id());            
                 }
             }
 

@@ -12,6 +12,7 @@
 #include "Statistics.h"
 
 using namespace ramulator;
+using namespace std;
 
 // A simple Bloom Filter implementation that uses area-efficient H3 class hash functions
 class BloomFilter {
@@ -58,6 +59,47 @@ public:
         
     }
 
+    BloomFilter(const uint32_t size, const uint32_t num_hash_funcs, const uint32_t rank_id) {
+
+        // check if size is power of two
+        assert((size & (size - 1)) == 0 && "ERROR: Bloom filter size must be a power-of-two number!");
+        assert(num_hash_funcs > 0 && "ERROR: A Bloom Filter requires at least one hash function!");
+
+        // randomly initialize the Q matrix
+        gen = std::mt19937(0); //Standard mersenne_twister_engine seeded with bf_id
+        uint32_t max_q_val = size - 1;
+        distrib = std::uniform_int_distribution<uint32_t>(0, max_q_val);
+
+        for (uint32_t i = 0; i < num_hash_funcs; i++){
+            Q.push_back(std::vector<uint32_t>(QLENGTH));
+        }
+        reset_hashes();
+
+        init_bf_storage(size, num_hash_funcs);
+
+        // initializing the statistics
+        bf_positives
+            .name("bf_positives_r" + to_string(rank_id))
+            .desc("The number of times the bloom filter returns true when queried.")
+            .precision(0)
+            ;
+
+        bf_negatives
+            .name("bf_negatives_r" + to_string(rank_id))
+            .desc("The number of times the bloom filter returns false when queried.")
+            .precision(0)
+            ;
+
+        bf_false_positives
+            .name("bf_false_positives_r" + to_string(rank_id))
+            .desc("The number of times the bloom filter returns true incorrectly when queried.")
+            .precision(0)
+            ;
+
+        // std::cout<<"BloomFilter::BloomFilter()RAIDR"<<std::endl;
+        
+    }
+
     virtual ~BloomFilter(){}
 
     virtual void init_bf_storage(const uint32_t size, const uint32_t num_hash_funcs) {
@@ -80,10 +122,10 @@ public:
 
     virtual void insert(const uint32_t key) {
 
-        // std::cout << "[BloomFilter] Inserting element: " << key << std::endl; // DEBUG
+        //std::cout << "[BloomFilter] Inserting element: " << key << std::endl; // DEBUG
         for (uint32_t i = 0; i < Q.size(); i++) {
             uint32_t entry_addr = hash(key, i);
-            // printf("[BloomFilter] Hash function %u entry address: %u\n", i, entry_addr); // DEBUG
+            //printf("[BloomFilter] Hash function %u entry address: %u\n", i, entry_addr); // DEBUG
             entries[entry_addr] = true;
         }
 

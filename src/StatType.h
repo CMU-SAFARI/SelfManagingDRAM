@@ -66,7 +66,6 @@ class StatBase {
         all_stats.push_back(this);
     }
 
-
   // TODO implement print for Distribution, Histogram,
   // AverageDeviation, StandardDeviation
   virtual void print(std::ofstream& file) = 0;

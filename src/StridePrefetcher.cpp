@@ -4,7 +4,7 @@ namespace ramulator
 {
 
 
-    StridePrefetcher::StridePrefetcher(uint num_stride_table_entries, StridePrefMode _mode, 
+    StridePrefetcher::StridePrefetcher(uint32_t num_stride_table_entries, StridePrefMode _mode, 
             int _single_stride_threshold, int _multi_stride_threshold, int _stride_start_dist,
             int _stride_degree, int _stride_dist, function<bool(Request)> _send,
             function<void(Request&)> _callback, function<void(Request&)> _proc_callback) {
@@ -34,7 +34,7 @@ namespace ramulator
        long line_index = line_addr >> CACHE_LINE_SIZE_BITS;
        long index_tag = STRIDE_REGION(line_addr);
 
-       for (uint ii = 0; ii < num_entries; ii++) {
+       for (uint32_t ii = 0; ii < num_entries; ii++) {
            if (index_tag == region_table[ii].tag && region_table[ii].valid) {
                region_idx = ii;
                break;
@@ -47,7 +47,7 @@ namespace ramulator
            // not present in the region table
            // make a new region
            // search for an unused entry
-           for (uint ii = 0; ii < num_entries; ii++) {
+           for (uint32_t ii = 0; ii < num_entries; ii++) {
                if (!region_table[ii].valid) {
                    region_idx = ii;
                    break;
@@ -143,7 +143,7 @@ namespace ramulator
                entry->pref_sent--;
            if (entry->num_states == 1 && stride == entry->stride[0]) {
                // single stride case
-               for (int ii = 0; (ii < stride_degree && entry->pref_sent < (ulong)stride_dist); ii++,
+               for (int ii = 0; (ii < stride_degree && entry->pref_sent < (uint64_t)stride_dist); ii++,
                                                     entry->pref_sent++) {
                    pref_index = entry->pref_last_index + entry->stride[0];
                    if (!issue_pref_req(pref_index))
@@ -162,7 +162,7 @@ namespace ramulator
                    entry->count++;
                }
                // now send out prefetches
-               for (int ii = 0; (ii < stride_degree && entry->pref_sent < (ulong)stride_dist); 
+               for (int ii = 0; (ii < stride_degree && entry->pref_sent < (uint64_t)stride_dist); 
                                                                     ii++, entry->pref_sent++) {
                    if (entry->pref_count == entry->s_cnt[entry->pref_curr_state]) {
                        pref_index = entry->pref_last_index + entry->strans[entry->pref_curr_state];

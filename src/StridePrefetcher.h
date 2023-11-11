@@ -11,7 +11,6 @@
 #define STRIDE_REGION(x) ( x >> (PREF_STRIDE_REGION_BITS) )
 
 #include <functional>
-#include <sys/types.h>
 #include "Request.h"
 
 #ifdef ATB_HEADERS
@@ -25,15 +24,15 @@ namespace ramulator
             struct StrideRegionTableEntry {
                 long tag;
                 bool valid;
-                uint last_access;
+                uint32_t last_access;
             };
 
             struct StrideIndexTableEntry {
                 bool trained;
                 bool train_count_mode;
 
-                uint num_states;
-                uint curr_state;
+                uint32_t num_states;
+                uint32_t curr_state;
                 long last_index;
 
                 int stride[2];
@@ -44,13 +43,13 @@ namespace ramulator
                 int count;
 
                 int pref_count;
-                uint pref_curr_state;
+                uint32_t pref_curr_state;
                 long pref_last_index;
 
-                ulong pref_sent;
+                uint64_t pref_sent;
             };
 
-            uint num_entries;
+            uint32_t num_entries;
             StrideRegionTableEntry* region_table;
             StrideIndexTableEntry* index_table;
             function<bool(Request)> send;
@@ -79,7 +78,7 @@ namespace ramulator
             int stride_dist;
             // END - config params
 
-            StridePrefetcher(uint num_stride_table_entries, StridePrefMode _mode, 
+            StridePrefetcher(uint32_t num_stride_table_entries, StridePrefMode _mode, 
                     int _single_stride_threshold, int _multi_stride_threshold, 
                     int _stride_start_dist, int _stride_degree, int _stride_dist,
                     function<bool(Request)> _send, function<void(Request&)> _callback,

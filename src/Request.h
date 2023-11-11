@@ -23,7 +23,7 @@ public:
                  // TODO: find a better name for this flag, or implement
                  // the functionality in a better way
 
-    int64_t req_unique_id = -1; // a unique ID for tracking individual requests for debugging purposes
+    long long req_unique_id = -1; // a unique ID for tracking individual requests for debugging purposes
     bool partially_nacked = false; // a flag to indicate if a request has been partially nacked before
 
     enum class Type
@@ -34,6 +34,7 @@ public:
         POWERDOWN,
         SELFREFRESH,
         PARA_REFRESH,
+        RAIDR_REFRESH,
         EXTENSION,
         PREFETCH,
         REF_STATUS_QUERY,

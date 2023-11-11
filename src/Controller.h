@@ -1,7 +1,7 @@
 #ifndef __CONTROLLER_H
 #define __CONTROLLER_H
 
-// #define PRINT_CMD_TRACE
+//#define PRINT_CMD_TRACE
 
 #include <cassert>
 #include <cstdio>
@@ -18,9 +18,11 @@
 #include "Config.h"
 #include "DRAM.h"
 #include "Refresh.h"
+#include "RAIDR.h"
 #include "Request.h"
 #include "Scheduler.h"
 #include "Statistics.h"
+#include "Graphene.h"
 
 // #include "ALDRAM.h"
 // #include "SALP.h"
@@ -83,6 +85,7 @@ protected:
     ScalarStat write_req_queue_length_sum;
 
     ScalarStat num_para_acts;
+    ScalarStat num_raidr_acts;
 
     // CROW
     ScalarStat crow_invPRE;
@@ -154,6 +157,8 @@ public:
     RowPolicy<T>* rowpolicy;  // determines the row-policy (e.g., closed-row vs. open-row)
     RowTable<T>* rowtable;  // tracks metadata about rows (e.g., which are open and for how long)
     Refresh<T>* refresh;
+    RAIDR<T> raidr;
+    Graphene<T> graphene;
     MemoryScrubber<T>* scrubber;
 
     struct Queue {
@@ -235,6 +240,10 @@ public:
     uint32_t chips_per_rank = 0;
 
     bool enable_para = false;
+    // raidr variables
+    bool enable_raidr = false;
+    bool enable_graphene = false;
+
     // PARA random number generation
     std::mt19937 para_gen;
     std::discrete_distribution<uint64_t> para_dist;
@@ -278,6 +287,8 @@ public:
         rowpolicy(new RowPolicy<T>(this, configs)),
         rowtable(new RowTable<T>(this)),
         refresh(new Refresh<T>(this)),
+        raidr(RAIDR<T>(configs, this)),
+        graphene(Graphene<T>(configs, this)),
         scrubber(new MemoryScrubber<T>(configs, this)),
         cmd_trace_files(channel->children.size()),
         smd_ref_tracker(SMDTracker<T>(configs, *this)),
@@ -555,6 +566,12 @@ public:
         num_para_acts
             .name("num_para_activates"+to_string(channel->id) + "_core")
             .desc("The total number of activations performed by PARA to refresh neighbor rows")
+            .precision(0)
+            ;
+
+        num_raidr_acts
+            .name("num_raidr_activates"+to_string(channel->id) + "_core")
+            .desc("The total number of activations performed by RAIDR")
             .precision(0)
             ;
 
@@ -961,7 +978,8 @@ public:
     Queue& get_queue(Request::Type type)
     {
         switch (int(type)) {
-            case int(Request::Type::READ):
+            case int(Request::Type::READ): 
+            case int(Request::Type::RAIDR_REFRESH):
             case int(Request::Type::PREFETCH): return readq;
             case int(Request::Type::WRITE): return writeq;
             default: return otherq;
@@ -1072,7 +1090,7 @@ public:
                             req.callback(req);}
 
                         #ifdef PRINT_CMD_TRACE
-                            printf("req_uid:%ld\tCompleting READ req. arrival:%ld, total latency:%ld\n", req.req_unique_id, req.arrive, req.depart - req.arrive);
+                            printf("req_uid:%lld\tCompleting READ req. arrival:%ld, total latency:%ld\n", req.req_unique_id, req.arrive, req.depart - req.arrive);
                         #endif
                         
                         break;
@@ -1152,6 +1170,12 @@ public:
         /*** 2. Refresh scheduler ***/
         if (!(refresh_disabled || smd_enabled))
             refresh->tick_ref();
+
+        if (enable_raidr)
+            raidr.tick_ref();
+
+        if (enable_graphene)
+            graphene.tick();
 
         /*** 2.5 SMD Refresh ***/
         if (smd_enabled) {
@@ -1685,7 +1709,7 @@ public:
         std::vector<int> addr_vec = get_addr_vec(cmd,req);
 
         #ifdef PRINT_CMD_TRACE
-            printf("req_uid:%ld\t", req->req_unique_id);
+            printf("req_uid:%lld\t", req->req_unique_id);
         #endif
         issue_cmd(cmd, addr_vec, req, false, make_crow_copy);
 
@@ -1697,6 +1721,9 @@ public:
 
             if(req->type == Request::Type::PARA_REFRESH)
                 num_para_acts++;
+                
+            if(req->type == Request::Type::RAIDR_REFRESH)
+                num_raidr_acts++;
 
             queue->q.erase(req);
             return;
@@ -1955,6 +1982,9 @@ public:
 
 
         enable_para = configs.get_bool("enable_para");
+        enable_raidr = configs.get_bool("enable_raidr");
+        enable_graphene = configs.get_bool("enable_graphene");
+
         enable_scrubbing = configs.get_bool("enable_scrubbing");
         scrubber->reload_options(configs);
     }
@@ -2023,7 +2053,8 @@ public:
             // TODO: implement ACT_NACK and NACK'ed ACT commands
 
             default: {
-                assert(false && "ERROR: Unimplemented DRAMPower command!");
+
+                // assert(false && "ERROR: Unimplemented DRAMPower command!");
             }
         }
 
@@ -2469,8 +2500,8 @@ private:
                 break;
             }
             default: {
-                std::cerr << "ERROR: No counter stat for command type: " << int(cmd) << std::endl;
-                assert(false);
+                // std::cerr << "ERROR: No counter stat for command type: " << int(cmd) << std::endl;
+                // assert(false);
             }
 
         }
@@ -2502,7 +2533,7 @@ private:
                     this->enqueue(req_neighbor_ref);
                 }
             }
-        }
+        } 
 
         if(enable_crow && do_full_restore && (cmd == T::Command::ACT)) {
             // clean just_opened state
@@ -2526,6 +2557,13 @@ private:
 
         // SMD -- END
         
+        // SMD
+        // weird way to implement now, when an ACT is sent
+        if (enable_graphene && (cmd == T::Command::ACT))
+            graphene.update(cmd, addr_vec, 36/*random*/);
+
+        // SMD -- END
+
         rowtable->update(cmd, addr_vec, clk);
         
         if (record_cmd_trace){
