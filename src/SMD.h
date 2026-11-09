@@ -446,6 +446,10 @@ class MaintenancePolicy {
             return false;
         }
 
+        bool is_bank_active(const uint32_t bank_id) {
+            return channel->get_open_SA(_rank_id, bank_id) != -1;
+        }
+
         bool is_on_cooldown(const uint32_t bank_id) {
             return get_locked_SAs()[bank_id].cooldown_exp > clk;
         }
@@ -871,7 +875,10 @@ class ECCScrubbingMachine : public MaintenanceMachine<T> {
 
     protected:
         bool retry_ref(const MaintenanceCounter& mc) {
-            if(!this->maint_policy.is_SA_active(mc.bank_id, mc.sa_counter) && !this->maint_policy.contains_locked_SA(mc.bank_id)) {
+            const bool active_row = this->maint_policy.lock_entire_bank ?
+                                    this->maint_policy.is_bank_active(mc.bank_id) :
+                                    this->maint_policy.is_SA_active(mc.bank_id, mc.sa_counter);
+            if(!active_row && !this->maint_policy.contains_locked_SA(mc.bank_id)) {
                 this->maint_completion_clk = this->maint_policy.get_clk() + this->maint_policy.maint_latency*this->maint_policy.row_maint_granularity;
 
                 // DRAMPower estimates DRAM energy for a single DRAM chip. The refresh power is calculated incorrectly (for all chips) if 
