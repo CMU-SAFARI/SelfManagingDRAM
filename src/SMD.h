@@ -105,7 +105,10 @@ private:
     const uint32_t act_threshold;
 
     std::map<uint32_t, uint32_t>::iterator get_min_counter() {
-        return std::min_element(counters.begin(), counters.end());
+        return std::min_element(counters.begin(), counters.end(),
+	    [](const std::pair<const uint32_t, uint32_t>& lhs, const std::pair<const uint32_t, uint32_t>& rhs) {
+	        return lhs.second < rhs.second;
+	    });
     }
 };
 
