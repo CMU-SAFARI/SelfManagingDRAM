@@ -156,6 +156,7 @@ private:
         {"smd_rh_protection_bloom_filter_type", "blockhammer"}, // space_efficient or blockhammer
         {"smd_rh_protection_mac", "8192"},
         {"smd_rh_protection_neighbor_ref_queue_size", "1024"},
+        {"smd_rh_marked_rows_table", "true"},
 
         // DRAMPower
         {"dpower_memspec_path", "./configs/SMD_configs/16Gb_DDR4_3200_8bit.xml"},

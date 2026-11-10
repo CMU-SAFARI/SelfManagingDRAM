@@ -1096,20 +1096,38 @@ template <typename T>
 class NeighborRowRefreshMachine : public MaintenanceMachine<T> {
 
 public:
-    NeighborRowRefreshMachine(MaintenancePolicy<T>& maint_policy) : MaintenanceMachine<T>(0, 1, maint_policy){}
+    enum class MarkResult {
+        ACCEPTED,
+        DUPLICATE,
+        DROPPED
+    };
 
-
-    void add_pending_maint(const RowAddr ra){
+    NeighborRowRefreshMachine(MaintenancePolicy<T>& maint_policy, const bool use_mrt = false) : MaintenanceMachine<T>(0, 1, maint_policy), use_mrt(use_mrt) {
+        if (use_mrt)
+            mrt.assign(maint_policy._num_banks_in_chip * maint_policy._num_SAs_per_bank, MRTEntry());
+    }
+    
+    MarkResult add_pending_maint(const RowAddr ra){
         assert(this->maint_counters.size() == 1);
         assert(pending_neighbor_refs.size() == this->maint_counters[0].pending_maint);
 
-        if (std::find(pending_neighbor_refs.begin(), pending_neighbor_refs.end(), ra) != pending_neighbor_refs.end()) {
+        if (use_mrt) {
+            MRTEntry& entry = mrt[ra.bank_gid * this->maint_policy._num_SAs_per_bank + ra.sa_id];
+
+            if (entry.valid)
+                return (entry.row_id == ra.row_id) ? MarkResult::DUPLICATE : MarkResult::DROPPED;
+            
+            entry.valid = true;
+            entry.row_id = ra.row_id;
+        } else if (std::find(pending_neighbor_refs.begin(), pending_neighbor_refs.end(), ra) != pending_neighbor_refs.end()) {
             // printf("[NeighborRowRefreshMachine] Neighbor row REF to bank: %u, sa: %u, row: %u is already issued.\n", ra.bank_gid, ra.sa_id, ra.row_id); // DEBUG
-            return; //this row is already in the queue of rows to refresh the neighbors of
+            return MarkResult::DUPLICATE; //this row is already in the queue of rows to refresh the neighbors of
         }
 
         MaintenanceMachine<T>::add_pending_maint();
         pending_neighbor_refs.push_back(ra);
+
+        return MarkResult::ACCEPTED;
     }
 
     virtual void tick() {
@@ -1117,8 +1135,12 @@ public:
         if(this->maint_completion_clk > this->maint_policy.get_clk())
             return; // the MaintenanceMachine is busy refreshing. Nothing to do
 
-        if(this->maint_completion_clk == this->maint_policy.get_clk()) // just finished refreshing. Release the SA
+        if(this->maint_completion_clk == this->maint_policy.get_clk()) { // just finished refreshing. Release the SA
             this->maint_policy.releaseSA(this->last_locked_SA.bank_id, this->last_locked_SA.sa_counter);
+
+            if (use_mrt)
+                mrt[this->last_locked_SA.bank_id * this->maint_policy._num_SAs_per_bank + this->last_locked_SA.sa_counter].valid = false;
+        }
 
         // check if the counter pointed to by ctr_index has a pending refresh. If so, try to issue a REF. If not (or cannot issue a REF), just increment the ctr_index.
         MaintenanceCounter& cur_mc = this->maint_counters[0];
@@ -1128,28 +1150,22 @@ public:
             return;
         }
 
-        // set the maintenance counter to the next SA in which to perform neighbor row refresh
-        cur_mc.set(pending_neighbor_refs[0]);
-
-        bool maint_initiated = false;
-        switch(this->maint_policy.smd_mode) {
-            case SMD_MODE::RSQ: {
-                maint_initiated = this->process_ref_rsq(cur_mc);
-                break;
+        if (use_mrt) {
+            for (auto it = pending_neighbor_refs.begin(); it != pending_neighbor_refs.end(); ++it) {
+                cur_mc.set(*it);
+            
+                if (try_start(cur_mc)) {
+                    cur_mc.pending_maint--;
+                    pending_neighbor_refs.erase(it);
+                    return;
+                }
             }
-            case SMD_MODE::ALERT: {
-                maint_initiated = this->process_ref_alert(cur_mc);
-                break;
-            }
-            case SMD_MODE::ACT_NACK: {
-                maint_initiated = this->process_maint_act_nack(cur_mc);
-                break;
-            }
-            default:
-                assert(false && "ERROR: Undefined SMD_MODE!");
+            return;
         }
 
-        if (!maint_initiated)
+        cur_mc.set(pending_neighbor_refs[0]);
+
+        if (!try_start(cur_mc))
             return;
 
         // decrement the pending maintenance count
@@ -1158,8 +1174,28 @@ public:
     }
 
 private:
+    typedef struct MRTEntry {
+        bool valid = false;
+        uint32_t row_id = 0;
+    } MRTEntry;
+
+    bool use_mrt;
+    std::vector<MRTEntry> mrt;
     std::vector<RowAddr> pending_neighbor_refs;
 
+    bool try_start(const MaintenanceCounter& mc) {
+        switch(this->maint_policy.smd_mode) {
+            case SMD_MODE::RSQ:
+                return this->process_ref_rsq(mc);
+            case SMD_MODE::ALERT:
+                return this->process_ref_alert(mc);
+            case SMD_MODE::ACT_NACK:
+                return this->process_maint_act_nack(mc);
+            default:
+                assert(false && "ERROR: Undefined SMD_MODE!");
+        }
+        return false;
+    }
 };
 
 
@@ -1175,7 +1211,7 @@ class SMDRowHammerProtection : public MaintenancePolicy<T> {
     public:
         SMDRowHammerProtection(const Config& configs, Controller<T>* ctrl, const uint32_t rank_id, 
             const uint32_t chip_id, const uint32_t num_banks_in_chip, const uint32_t SAs_per_bank, const uint32_t num_rows) : 
-            MaintenancePolicy<T>(configs, ctrl, rank_id, chip_id, num_banks_in_chip, SAs_per_bank, num_rows), rh_machine(*this),
+            MaintenancePolicy<T>(configs, ctrl, rank_id, chip_id, num_banks_in_chip, SAs_per_bank, num_rows), rh_machine(*this, configs.get_bool("smd_rh_marked_rows_table") && configs.get_str("smd_rh_protection_mode") != "Graphene"),
             bf(configs.get_uint("smd_rh_protection_bloom_filter_size"), configs.get_uint("smd_rh_protection_bloom_filter_hashes"),
                                     configs.get_uint("smd_rh_protection_mac"), configs.get_str("smd_rh_protection_bloom_filter_type") == "space_efficient", 
                                     rank_id, chip_id) {
@@ -1217,6 +1253,10 @@ class SMDRowHammerProtection : public MaintenancePolicy<T> {
 
             this->pending_maint_limit = configs.get_uint("smd_rh_protection_neighbor_ref_queue_size");
 
+            if (configs.get_bool("smd_rh_marked_rows_table") && configs.get_str("smd_rh_protection_mode") != "Graphene") {
+                this->pending_maint_limit = num_banks_in_chip * SAs_per_bank;
+            }
+
             this->row_maint_granularity = configs.get_uint("smd_rh_blast_radius")*2; // multiplying by since refreshing "smd_rh_blast_radius" number of victim from each side of an aggressor
 
             bf_epoch = configs.get_ulong("smd_rh_protection_bloom_filter_epoch");
@@ -1227,6 +1267,12 @@ class SMDRowHammerProtection : public MaintenancePolicy<T> {
             gen = std::mt19937{rank_id*num_chips + chip_id}; // using fixed seed for repeatable simulations
             double neighbor_row_refresh_pct = (double)configs.get_float("smd_rh_neighbor_refresh_pct");
             disc_dist = std::discrete_distribution<uint64_t>({100 - neighbor_row_refresh_pct, neighbor_row_refresh_pct});
+
+            dropped_marked_rows
+                .name("dropped_marked_rows_r" + to_string(rank_id) + "_c" + to_string(chip_id))
+                .desc("The number of marked rows that the Marked Rows Table dropped because the lock region already held a marked row.")
+                .precision(0)
+            ;
 
             issued_neighbor_refs
                 .name("issued_neighbor_refs_r" + to_string(rank_id) + "_c" + to_string(chip_id))
@@ -1257,8 +1303,7 @@ class SMDRowHammerProtection : public MaintenancePolicy<T> {
 
             if (rh_mode == RHProtectionMode::PARA) {
                 if(disc_dist(gen)){
-                    rh_machine.add_pending_maint(RowAddr(bank_id, addr_vec[uint32_t(T::Level::Subarray)], addr_vec[uint32_t(T::Level::Row)]));
-                    issued_neighbor_refs++;
+                    mark_aggressor(RowAddr(bank_id, addr_vec[uint32_t(T::Level::Subarray)], addr_vec[uint32_t(T::Level::Row)]));
 
                     #ifdef SMD_DEBUG
                         printf("%lu\t[%s]\t[Chip %d] Issuing neighbor row refresh for r: %d gbid: %d, grid: %d \n", this->clk, this->_policy_name.c_str(), this->_chip_id, this->_rank_id, bank_id, row_id);
@@ -1271,8 +1316,7 @@ class SMDRowHammerProtection : public MaintenancePolicy<T> {
                 if(bf.test(bf_addr)){
                     // perform neighbor row refresh with a low probability
                     if(disc_dist(gen)){
-                        rh_machine.add_pending_maint(RowAddr(bank_id, addr_vec[uint32_t(T::Level::Subarray)], addr_vec[uint32_t(T::Level::Row)]));
-                        issued_neighbor_refs++;
+                        mark_aggressor(RowAddr(bank_id, addr_vec[uint32_t(T::Level::Subarray)], addr_vec[uint32_t(T::Level::Row)]));
 
                         #ifdef SMD_DEBUG
                             printf("%lu\t[%s]\t[Chip %d] Issuing neighbor row refresh for r: %d gbid: %d, grid: %d \n", this->clk, this->_policy_name.c_str(), this->_chip_id, this->_rank_id, bank_id, row_id);
@@ -1283,8 +1327,7 @@ class SMDRowHammerProtection : public MaintenancePolicy<T> {
                 bool issue_neighbor_ref = counter_tables[bank_id].increment(row_id);
 
                 if (issue_neighbor_ref) {
-                    rh_machine.add_pending_maint(RowAddr(bank_id, addr_vec[uint32_t(T::Level::Subarray)], addr_vec[uint32_t(T::Level::Row)]));
-                    issued_neighbor_refs++;
+                    mark_aggressor(RowAddr(bank_id, addr_vec[uint32_t(T::Level::Subarray)], addr_vec[uint32_t(T::Level::Row)]));
 
                     #ifdef SMD_DEBUG
                         printf("%lu\t[%s]\t[Chip %d] Issuing neighbor row refresh for r: %d gbid: %d, grid: %d \n", this->clk, this->_policy_name.c_str(), this->_chip_id, this->_rank_id, bank_id, row_id);
@@ -1298,8 +1341,22 @@ class SMDRowHammerProtection : public MaintenancePolicy<T> {
 
     protected:
         ScalarStat issued_neighbor_refs;
+        ScalarStat dropped_marked_rows;
 
     private:
+        void mark_aggressor(const RowAddr& ra) {
+            switch(rh_machine.add_pending_maint(ra)) {
+                case NeighborRowRefreshMachine<T>::MarkResult::ACCEPTED:
+                    issued_neighbor_refs++;
+                    break;
+                case NeighborRowRefreshMachine<T>::MarkResult::DROPPED:
+                    dropped_marked_rows++;
+                    break;
+                default:
+                    break;
+            }
+        }
+
         NeighborRowRefreshMachine<T> rh_machine;
         DualCountingBloomFilter bf;
         uint64_t bf_epoch = 0;
