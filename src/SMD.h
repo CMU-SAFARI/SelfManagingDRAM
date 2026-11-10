@@ -314,6 +314,8 @@ class MaintenancePolicy {
             const uint32_t num_banks_in_chip, const uint32_t SAs_per_bank, const uint32_t num_rows) : ctrl(ctrl) {
 
             pending_maint_limit = configs.get_uint("smd_pending_ref_limit");
+            open_bitline = configs.get_bool("smd_open_bitline");
+            physical_sa_rows = configs.get_uint("smd_physical_subarray_size");
             smd_mode = str_to_smd_mode[configs.get_str("smd_mode")];
             _num_banks_in_chip = num_banks_in_chip;
             _num_SAs_per_bank = SAs_per_bank;
@@ -361,6 +363,24 @@ class MaintenancePolicy {
 
             if ((le.locked && le.sa_id == sa_id) || le.bank_locked)
                 return true;
+
+            return false;
+        }
+
+        bool is_row_under_maintenance(const uint32_t global_bank_id, const uint32_t sa_id, const uint32_t row_in_sa) const {
+            if (is_SA_under_maintenance(global_bank_id, sa_id))
+                return true;
+            
+            const auto& le = get_locked_SAs()[global_bank_id];
+
+            if (!open_bitline || !le.locked)
+                return false;
+            
+            if (sa_id + 1 == le.sa_id)
+                return row_in_sa + physical_sa_rows >= _num_rows;
+
+            if (sa_id == le.sa_id + 1)
+                return row_in_sa < physical_sa_rows;
 
             return false;
         }
@@ -459,6 +479,9 @@ class MaintenancePolicy {
         uint32_t _num_banks_in_chip;
         uint32_t _num_SAs_per_bank;
         uint32_t _num_rows;
+
+        bool open_bitline = true;
+        uint32_t physical_sa_rows = 512;
 
         uint32_t maint_latency = 50;
         uint32_t pending_maint_limit = 9;

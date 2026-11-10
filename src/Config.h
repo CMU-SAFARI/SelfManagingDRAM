@@ -122,6 +122,8 @@ private:
         // to read out an entire row, the row needs to remain open for about 355ns (from the cycle ACT is issued until the PRE is issued). 
         // So, this time does not include tRP, but tRCD and 128*4(cycles between consecutive READ commands) 
         {"smd_act_nack_resend_interval", "100.0f"},
+        {"smd_open_bitline", "true"},
+        {"smd_physical_subarray_size", "512"},
         {"smd_worst_case_ref_distribution", "false"},
         // What happens when not all chips return a NACK:
         //      PRE: PREcharge the bank, try to find new requests to serve while NACKing chips get out of maintenance state
@@ -258,7 +260,7 @@ public:
 
     uint64_t get_ulong(const std::string& param_name) const {
         
-        return get<uint64_t>(param_name, [](const std::string& s){ return std::strtoul(s.c_str(), nullptr, 10); }); // Hasan: the lambda function trick helps ignoring the optional argument of stoi
+        return get<uint64_t>(param_name, [](const std::string& s){ return (uint64_t)std::strtoul(s.c_str(), nullptr, 10); }); // Hasan: the lambda function trick helps ignoring the optional argument of stoi
     }
     
     long get_long(const std::string& param_name) const {
