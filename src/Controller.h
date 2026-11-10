@@ -1452,7 +1452,7 @@ public:
                     // printf("=== ===\n");
 
                     for(uint32_t chip_id = 0; chip_id < chips_per_rank; chip_id++) {
-                        if(get_smd_refresher(inv_req->addr_vec[1], chip_id)->is_SA_under_maintenance(channel->spec->calc_global_bank_id(inv_req->addr_vec), inv_req->addr_vec[int(T::Level::Subarray)])) {
+                        if(get_smd_refresher(inv_req->addr_vec[1], chip_id)->is_row_under_maintenance(channel->spec->calc_global_bank_id(inv_req->addr_vec), inv_req->addr_vec[int(T::Level::Subarray)], inv_req->addr_vec[int(T::Level::Row)])) {
                             smd_ready_but_SA_really_refreshing++;
                             break;
                         }
@@ -3118,11 +3118,12 @@ private:
         uint32_t gbid = channel->spec->calc_global_bank_id(addr_vec);
         // uint32_t sa_id = addr_vec[int(T::Level::Row)]/channel->spec->get_subarray_size();
         uint32_t sa_id = addr_vec[int(T::Level::Subarray)];
+        uint32_t row_in_sa = addr_vec[int(T::Level::Row)];
 
         uint num_busy_chips = 0;
 
         for(uint32_t chip_id = 0; chip_id < chips_per_rank; chip_id++) {
-            if(get_smd_refresher(addr_vec[int(T::Level::Rank)], chip_id)->is_SA_under_maintenance(gbid, sa_id))
+            if(get_smd_refresher(addr_vec[int(T::Level::Rank)], chip_id)->is_row_under_maintenance(gbid, sa_id, row_in_sa))
             // || (smd_ecc_scrubbing_enabled && get_smd_scrubber(addr_vec[int(T::Level::Rank)], chip_id)->is_SA_under_maintenance(gbid, sa_id))) 
             // Hasan: no need to check the scrubber policy separately as all policies share the same var for managing locked subarrays. 
             // So, is_SA_under_maintenance() returns true if any active maintenance has locked the region
